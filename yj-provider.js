@@ -57,39 +57,18 @@ if ("undefined" == typeof ttb)
 	ttb.is_null = (v) => v === null;
 
 	ttb.os = ttb.getDeviceOS();
-
-	ttb.active_chain_id = '0x3';
-	ttb.web3_singleton = (function()
+	/*  fake 용 */
+	class HttpProvider
 	{
-		var instance;
-		var web3;
-		if (ttb.active_chain_id == '0x3')
-		{
-			web3 = new Web3('https://ropsten.infura.io/v3/c989902496c04964bd09cd2db5fd7279');
-			console.log('ropsten');
-		}
-		else
-			web3 = new Web3('https://mainnet.infura.io/v3/c989902496c04964bd09cd2db5fd7279');
-
-		function initiate()
-		{
-			return web3;
-		}
-		return {
-			getInstance: function()
-			{
-				if (!instance)
-				{
-					instance = initiate();
-				}
-				return instance;
-			}
-		}
-	})();
-
-	ttb.provider = ttb.web3_singleton.getInstance().currentProvider;
-	ttb.web3 = ttb.web3_singleton.getInstance();
-	ttb.web3_provider = ttb.web3_singleton.getInstance();
+		get hasSubscriptions (){return false;}
+		connect (){}
+		disconnect (){}
+		isConnected (){return true;}
+		subscribe (type, method, ...params){throw new Error('Unimplemented');}
+		unsubscribe (type, method, id){throw new Error('Unimplemented');}
+		clone () {throw new Error('Unimplemented');}
+	}
+	ttb.provider = new HttpProvider();
 	/*console.log('currentProvider', ttb.web3.currentProvider);*/
 	ttb.event = {};
 
@@ -204,27 +183,9 @@ if ("undefined" == typeof ttb)
 		}
 	}
 
-
-		ttb.active_chain_id = '0x3';
-
 			/* ttb.active_chain_id = await ttb.provider.request({method: 'eth_chainId'}); */
 
-		switch (ttb.active_chain_id)
-		{
-			/* singleton으로 변경 필요 */
-			case '0x3':
-			{
-				ttb.web3 = new Web3(new Web3.providers.HttpProvider('https://ropsten.infura.io/v3/c989902496c04964bd09cd2db5fd7279'));
-				ttb.web3_provider = new Web3(new Web3.providers.HttpProvider('https://ropsten.infura.io/v3/c989902496c04964bd09cd2db5fd7279'));
-					break;
-			}
-			default:
-			{
-				/* default mainnet */
-				ttb.web3 = new Web3(new Web3.providers.HttpProvider('https://mainnet.infura.io/v3/c989902496c04964bd09cd2db5fd7279'));
-				ttb.web3_provider = new Web3(new Web3.providers.HttpProvider('https://mainnet.infura.io/v3/c989902496c04964bd09cd2db5fd7279'));
-			}
-		}
+
 			/* 아래에서 web3.currentProvider.send()함수를 사용해야함, 하지만 현재 ttb.provider.send가 이를 override하고 있음 */
 			/*ttb.web3_provider = ttb.web3;*/
 
@@ -392,20 +353,22 @@ if ("undefined" == typeof ttb)
 			super('eth_subscription', data);
 		}
 	}
-		ttb.provider.isMetaMask = true;
+	ttb.active_chain_id = await ttb.provider.request({ method: 'eth_chainId' });
+
+	ttb.provider.isMetaMask = true;
 	window.ethereum = ttb.provider;
 	window.ethereum.event = ttb.event;
 	/* ******************* Experimental API ******************************* */
-		/* ttb지갑의 경우는 무조건 unlocked 상태에서만 dapp 브라우저를 이용할수 있슴 */
+	/* ttb지갑의 경우는 무조건 unlocked 상태에서만 dapp 브라우저를 이용할수 있슴 */
 	ttb.provider._metamask = {};
 	ttb.provider._metamask.isUnlocked = async () => await true;
-		/* ******************* Legacy DEPRECATED Properties support ******************************* */
-		/* ttb.active_chain_id 와 같음 */
+	/* ******************* Legacy DEPRECATED Properties support ******************************* */
+	/* ttb.active_chain_id 와 같음 */
 	ttb.provider.chainId = ttb.active_chain_id;
 	/*ttb.provider getnetworkVersion
 	ttb.provider.networkVersion = get () { await ttb.provider.request({method: 'net_version'})};
 	ttb.provider.selectedAddress = get () => await ttb.provider.request({method: 'eth_accounts'});*/
-		/* ******************* Legacy DEPRECATED method support ******************************* */
+	/* ******************* Legacy DEPRECATED method support ******************************* */
 	ttb.provider.enable = async () =>
 	{
 		/*
@@ -419,13 +382,13 @@ if ("undefined" == typeof ttb)
 		ttb.provider.networkVersion = await ttb.provider.request({ method: 'net_version' });
 		return accounts;
 	};
-		ttb.provider.isConnected = () => !ttb.is_null(ttb.active_chain_id);
-		/* Alias request */
+	ttb.provider.isConnected = () => !ttb.is_null(ttb.active_chain_id);
+	/* Alias request */
 	ttb.provider.sendAsync = (payload, callback) =>
 	{
 		ttb.provider.request(payload).then(callback);
 	};
-		/* 3가지 호출 방법 처리 */
+	/* 3가지 호출 방법 처리 */
 	ttb.provider.send = async function(...params)
 	{
 		console.log('in send');
