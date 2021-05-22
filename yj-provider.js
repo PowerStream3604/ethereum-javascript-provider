@@ -57,6 +57,9 @@ if ("undefined" == typeof ttb)
 	ttb.is_null = (v) => v === null;
 
 	ttb.os = ttb.getDeviceOS();
+
+	ttb.active_chain_id = '0x3';
+
 	/*  fake 용 */
 	class HttpProvider
 	{
@@ -68,12 +71,13 @@ if ("undefined" == typeof ttb)
 		unsubscribe (type, method, id){throw new Error('Unimplemented');}
 		clone () {throw new Error('Unimplemented');}
 	}
-	ttb.provider = new HttpProvider();
-	/*console.log('currentProvider', ttb.web3.currentProvider);*/
+	var web3 = new Web3('https://mainnet.infura.io/v3/c989902496c04964bd09cd2db5fd7279');
+	ttb.provider = web3.currentProvider;
+	/* ttb.provider = new HttpProvider(); */
+
 	ttb.event = {};
 
 	ttb.connected_chain_id = {};
-	ttb.active_chain_id = null;
 
 	ttb.message_handler = {};
 	ttb.provider.networkVersion = null;
@@ -175,47 +179,42 @@ if ("undefined" == typeof ttb)
 				if (ttb.message_handler['chainIdChanged']) ttb.message_handler['chainIdChanged'](err);
 				if (ttb.message_handler['networkChanged']) ttb.message_handler['networkChanged'](err);
 			}
-			else 
+			else
 			{
-				console.log('chainChanged param missing');
-				throw new Error('chainChanged param missing');
+				console.log('accountsChanged param missing');
+				throw new Error('accountsChanged param missing');
 			}
 		}
 	}
 
-			/* ttb.active_chain_id = await ttb.provider.request({method: 'eth_chainId'}); */
-
-
-			/* 아래에서 web3.currentProvider.send()함수를 사용해야함, 하지만 현재 ttb.provider.send가 이를 override하고 있음 */
-			/*ttb.web3_provider = ttb.web3;*/
-
-			/*ttb.provider = ttb.web3.currentProvider;*/
-
-			/*
-				이 메소드는 end-point에서 이벤트 발생시 호출
-			*/
-
-			/* Promise를 리턴해야 하며, consumer(dapp)에서 rpc 요청을 대신한다. */
+	/* Promise를 리턴해야 하며, consumer(dapp)에서 rpc 요청을 대신한다. */
 	ttb.provider.request = (payload) =>
 	{
 		console.log('call ttb.provider.request');
 		console.dir(payload);
+
 		let promise = new Promise(async (resolve_func, reject_func) =>
 		{
-			if (!payload.hasOwnProperty('params')) payload.params = {};
+			if (!payload.hasOwnProperty('params')) payload.params = [];
+
 			let bundle = {
 				'actionType': 'walletProvider',
 				'action': payload.method,
 				'params': payload.params
 			};
-
+			console.log('bundle');
+			console.dir(bundle);
 			if (['eth_requestAccounts', 'eth_accounts'].includes(payload.method))
 			{
-				bundle.pc_result = '{"code": 200, "message": "OK", "body" :{"accounts": ["0x4c10D2734Fb76D3236E522509181CC3Ba8DE0e80", "0x5C252a0c0475f9711b56ab160a1999729eccCE97"] }}';
+				bundle.pc_result = '{"code": 200, "message": "OK", "body" :{"accounts": ["0x4c10D2734Fb76D3236E522509181CC3Ba8DE0e80"] }}';
 			}
 			if (['eth_chainId'].includes(payload.method))
 			{
-				bundle.pc_result = '{"code": 200, "message": "OK", "body" :{"chainId": "0x3" }}';
+				bundle.pc_result = '{"code": 200, "message": "OK", "body" :"0x1"}';
+			}
+			if(['net_version'].includes(payload.method))
+			{
+				bundle.pc_result = '{"code": 200, "message": "OK", "body" : "1"}';
 			}
 			let result_json_string = await ttb.call_webview_object(bundle);
 			console.log('type of return value from webview 123123');
@@ -232,8 +231,8 @@ if ("undefined" == typeof ttb)
 					case 'eth_gasPrice':
 					{
 						console.log('eth_gasPrice working');
-						console.log(data.price);
-						resolve_func(data.price);
+						console.log(data);
+						resolve_func(data);
 						break;
 					}
 					case 'eth_requestAccounts':
@@ -251,49 +250,59 @@ if ("undefined" == typeof ttb)
 					case 'eth_sendTransaction':
 					{
 						console.log('eth_sendTransaction working');
+						console.log('eth_sendTransasction transaction hash', data.trans_hash);
 						resolve_func(data.trans_hash);
+						break;
+					}
+					case 'eth_signTransaction':
+					{
+						console.log('eth_signTransaction working');
+						resolve_func(data.trans_obj);
 						break;
 					}
 					case 'net_version':
 					{
 						console.log('net_version workings');
-						resolve_func(data.networkId);
+						/*  */
+						//let va = '{"id":1, "jsonrpc":"2.0", "result":"1"}';
+						//data = JSON.parse(va);
+						resolve_func(data);
 						break;
 					}
 					case 'eth_chainId':
 					{
 						console.log('eth_chainId');
-						resolve_func(data.chainId);
+						resolve_func(data);
 						break;
 					}
-					case 'eth_getBlockByNumber':
-					{
-						console.log('eth_getBlockByNumber');
-						/*  */
-						resolve_func(data.info);
-						break;
-					}
-					case 'eth_blockNumber':
-					{
-						console.log('eth_blockNumber');
-						resolve_func(data.blockNum)
-					}
+
 					case 'eth_subscribe':
 					{
-						console.log('eth_subscribe');
 						/* 보류 */
+						console.log('eth_subscribe');
 						resolve_func(data);
+						break;
+					}
+					case 'eth_sign':
+					{
+						/* 보류 */
+						console.log('eth_sign');
+						resolve_func(data.sign);
 						break;
 					}
 					case 'wallet_requestPermissions':
 					{
 						console.log('wallet_requestPermissions');
 						/* 보류 */
-					resolve_func(data);
+						resolve_func(data);
 						break;
 					}
-					default:
+					default:{
+						console.log('기타 ' + data);
 						resolve_func(data);
+
+					}
+						
 				}
 			}
 			else
@@ -305,7 +314,7 @@ if ("undefined" == typeof ttb)
 				if (4200 == oJson.code)
 				{
 					oJson.message = "Unsupported method";
-					}
+				}
 				if (999 == oJson.code)
 				{
 					oJson.message = "Unexpected Error while executing";
@@ -317,6 +326,7 @@ if ("undefined" == typeof ttb)
 				else throw err;
 			}
 		});
+
 		return promise;
 	};
 
@@ -325,26 +335,31 @@ if ("undefined" == typeof ttb)
 		constructor(...params)
 		{
 			super(...params);
-				this.code = -1;
+
+			this.code = -1;
 			this.data = null;
 		}
 	}
-		class ProviderMessage
+
+	class ProviderMessage
 	{
 		constructor(type, data)
 		{
 			this._type = type;
 			this._data = data;
 		}
-			get type()
+
+		get type()
 		{
 			return this._type;
 		}
-			get data()
+
+		get data()
 		{
 			return this._data;
 		}
 	}
+
 	/* 나중에 다시 검토 */
 	class EthSubscription extends ProviderMessage
 	{
@@ -353,21 +368,26 @@ if ("undefined" == typeof ttb)
 			super('eth_subscription', data);
 		}
 	}
-	ttb.active_chain_id = await ttb.provider.request({ method: 'eth_chainId' });
 
-	ttb.provider.isMetaMask = true;
+	ttb.provider.isMetaMask = true;/* true */
+	window.web3 = new Web3('https://mainnet.infura.io/v3/c989902496c04964bd09cd2db5fd7279');
 	window.ethereum = ttb.provider;
 	window.ethereum.event = ttb.event;
 	/* ******************* Experimental API ******************************* */
+
 	/* ttb지갑의 경우는 무조건 unlocked 상태에서만 dapp 브라우저를 이용할수 있슴 */
 	ttb.provider._metamask = {};
 	ttb.provider._metamask.isUnlocked = async () => await true;
+
 	/* ******************* Legacy DEPRECATED Properties support ******************************* */
+
 	/* ttb.active_chain_id 와 같음 */
 	ttb.provider.chainId = ttb.active_chain_id;
-	/*ttb.provider getnetworkVersion
-	ttb.provider.networkVersion = get () { await ttb.provider.request({method: 'net_version'})};
-	ttb.provider.selectedAddress = get () => await ttb.provider.request({method: 'eth_accounts'});*/
+
+	/* ttb.provider getnetworkVersion */
+	ttb.provider.networkVersion = '1';
+	ttb.provider.selectedAddress = null;
+
 	/* ******************* Legacy DEPRECATED method support ******************************* */
 	ttb.provider.enable = async () =>
 	{
@@ -380,23 +400,29 @@ if ("undefined" == typeof ttb)
 		console.log('00000 before accounts');
 		ttb.provider.selectedAddress = await ttb.provider.request({ method: 'eth_accounts' });
 		ttb.provider.networkVersion = await ttb.provider.request({ method: 'net_version' });
+		/* 처음 연결시 notify가 발생한다면 아래 2라인 불필요 */
+		ttb.active_chain_id = await ttb.provider.request({ method: 'eth_chainId' });
+		ttb.provider.chainId = ttb.active_chain_id;
 		return accounts;
 	};
+
 	ttb.provider.isConnected = () => !ttb.is_null(ttb.active_chain_id);
+
 	/* Alias request */
 	ttb.provider.sendAsync = (payload, callback) =>
 	{
 		ttb.provider.request(payload).then(callback);
 	};
+
 	/* 3가지 호출 방법 처리 */
 	ttb.provider.send = async function(...params)
 	{
 		console.log('in send');
 		console.dir(params[0]);
-		let support_flag = 0;
+
 		if (ttb.is_string(params[0]) || ttb.is_object(params[0]))
 		{
-			let method = null;
+			var method = null;
 			if (ttb.is_string(params[0]))
 			{
 				method = params[0];
@@ -405,7 +431,7 @@ if ("undefined" == typeof ttb)
 			{
 				method = params[0].method;
 			}
-			let sign_needed_method = [
+			var sign_needed_method = [
 				'eth_requestAccounts',
 				'eth_sendTransaction',
 				'eth_signTransaction',
@@ -416,32 +442,31 @@ if ("undefined" == typeof ttb)
 				'eth_sign',
 				'eth_gasPrice'
 			];
-			if (sign_needed_method.includes(method))
-			{
-				support_flag = 1;
-			}
 		}
+
 		if (params.length > 1 && ttb.is_object(params[0]) && ttb.is_function(params[1]))
 		{
 			/* void */
 			console.log('1');
-			if (1 == support_flag)
+			if (sign_needed_method.includes(method))
+			{
 				ttb.provider.request(params[0]).then(params[1]);
+			}
 			else
 			{
 				console.log('inside else statement');
 				params[0].jsonrpc = '2.0';
 				params[0].id = '1';
-				console.log('provider', ttb.web3_provider.currentProvider);
+
 				console.log('payload', params);
-				/* 이 부분에서 override 되서 오 작동 ttb.web3.currentProvider.send(params[0]).then(params[1]);*/
-				ttb.web3_provider.currentProvider.send(params[0], params[1]);
+				ttb.provider.request(params[0]).then(params[1]);
 			}
 		}
 		else if (params.length > 0 && ttb.is_string(params[0]))
 		{
 			if (1 == params.length) params[1] = {};
-				/* return Promise<JsonRpcResponse> */
+
+			/* return Promise<JsonRpcResponse> */
 			return ttb.provider.request({ method: params[0], params: params[1] });
 		}
 		else if (params.length > 0 && ttb.is_object(params[0]))
@@ -451,5 +476,6 @@ if ("undefined" == typeof ttb)
 			return ttb.provider.request(params[0]);
 		}
 	};
-		console.log('provider injected');
-	}
+
+	console.log('provider injected');
+}
