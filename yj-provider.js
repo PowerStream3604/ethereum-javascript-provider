@@ -58,7 +58,7 @@ if ("undefined" == typeof ttb)
 
 	ttb.os = ttb.getDeviceOS();
 
-	ttb.active_chain_id = '0x3';
+	ttb.active_chain_id = '0x1';
 
 	/*  fake 용 */
 	class HttpProvider
@@ -275,7 +275,6 @@ if ("undefined" == typeof ttb)
 						resolve_func(data);
 						break;
 					}
-
 					case 'eth_subscribe':
 					{
 						/* 보류 */
@@ -302,7 +301,6 @@ if ("undefined" == typeof ttb)
 						resolve_func(data);
 
 					}
-						
 				}
 			}
 			else
@@ -326,7 +324,6 @@ if ("undefined" == typeof ttb)
 				else throw err;
 			}
 		});
-
 		return promise;
 	};
 
@@ -348,12 +345,10 @@ if ("undefined" == typeof ttb)
 			this._type = type;
 			this._data = data;
 		}
-
 		get type()
 		{
 			return this._type;
 		}
-
 		get data()
 		{
 			return this._data;
@@ -371,6 +366,7 @@ if ("undefined" == typeof ttb)
 
 	ttb.provider.isMetaMask = true;/* true */
 	window.web3 = new Web3('https://mainnet.infura.io/v3/c989902496c04964bd09cd2db5fd7279');
+	window.web3.currentProvider = Object.assign(window.web3, ttb.provider);
 	window.ethereum = ttb.provider;
 	window.ethereum.event = ttb.event;
 	/* ******************* Experimental API ******************************* */
@@ -411,11 +407,13 @@ if ("undefined" == typeof ttb)
 	/* Alias request */
 	ttb.provider.sendAsync = (payload, callback) =>
 	{
+		console.log('in sendAsync function');
+		console.dir(payload);
 		ttb.provider.request(payload).then(callback);
 	};
 
-	/* 3가지 호출 방법 처리 */
-	ttb.provider.send = async function(...params)
+	/* 3가지 호출 방법 처리 async*/
+	ttb.provider.send = function(...params)
 	{
 		console.log('in send');
 		console.dir(params[0]);
