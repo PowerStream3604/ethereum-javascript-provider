@@ -71,8 +71,9 @@ if ("undefined" == typeof ttb)
 		unsubscribe (type, method, id){throw new Error('Unimplemented');}
 		clone () {throw new Error('Unimplemented');}
 	}
-	var web3 = new Web3('https://mainnet.infura.io/v3/c989902496c04964bd09cd2db5fd7279');
-	ttb.provider = web3.currentProvider;
+	/* var web3 = new Web3('https://mainnet.infura.io/v3/c989902496c04964bd09cd2db5fd7279'); */
+
+	ttb.provider = new HttpProvider();
 	/* ttb.provider = new HttpProvider(); */
 
 	ttb.event = {};
@@ -226,82 +227,8 @@ if ("undefined" == typeof ttb)
 			if (200 == oJson.code)
 			{
 				let data = oJson.body;
-				switch (payload.method)
-				{
-					case 'eth_gasPrice':
-					{
-						console.log('eth_gasPrice working');
-						console.log(data);
-						resolve_func(data);
-						break;
-					}
-					case 'eth_requestAccounts':
-					{
-						console.log('eth_requestAccounts working');
-						resolve_func(data.accounts);
-						break;
-					}
-					case 'eth_accounts':
-					{
-						console.log('eth_accounts working');
-						resolve_func(data.accounts);
-						break;
-					}
-					case 'eth_sendTransaction':
-					{
-						console.log('eth_sendTransaction working');
-						console.log('eth_sendTransasction transaction hash', data.trans_hash);
-						resolve_func(data.trans_hash);
-						break;
-					}
-					case 'eth_signTransaction':
-					{
-						console.log('eth_signTransaction working');
-						resolve_func(data.trans_obj);
-						break;
-					}
-					case 'net_version':
-					{
-						console.log('net_version workings');
-						/*  */
-						//let va = '{"id":1, "jsonrpc":"2.0", "result":"1"}';
-						//data = JSON.parse(va);
-						resolve_func(data);
-						break;
-					}
-					case 'eth_chainId':
-					{
-						console.log('eth_chainId');
-						resolve_func(data);
-						break;
-					}
-					case 'eth_subscribe':
-					{
-						/* 보류 */
-						console.log('eth_subscribe');
-						resolve_func(data);
-						break;
-					}
-					case 'eth_sign':
-					{
-						/* 보류 */
-						console.log('eth_sign');
-						resolve_func(data.sign);
-						break;
-					}
-					case 'wallet_requestPermissions':
-					{
-						console.log('wallet_requestPermissions');
-						/* 보류 */
-						resolve_func(data);
-						break;
-					}
-					default:{
-						console.log('기타 ' + data);
-						resolve_func(data);
-
-					}
-				}
+				console.log('기타 :' + data);
+				resolve_func(data.result);
 			}
 			else
 			{
@@ -320,6 +247,7 @@ if ("undefined" == typeof ttb)
 				let err = new ProviderRpcError(oJson.message);
 				err.code = oJson.code;
 				console.dir(oJson);
+				/* should throw error and return error object */
 				if ('function' == typeof reject_func) reject_func(err);
 				else throw err;
 			}
@@ -365,10 +293,10 @@ if ("undefined" == typeof ttb)
 	}
 
 	ttb.provider.isMetaMask = true;/* true */
-	window.web3 = new Web3('https://mainnet.infura.io/v3/c989902496c04964bd09cd2db5fd7279');
-	window.web3.currentProvider = Object.assign(window.web3, ttb.provider);
 	window.ethereum = ttb.provider;
 	window.ethereum.event = ttb.event;
+	window.web3 = {__isMetaMaskShim__ : true};
+	window.web3.currentProvider = ttb.provider;
 	/* ******************* Experimental API ******************************* */
 
 	/* ttb지갑의 경우는 무조건 unlocked 상태에서만 dapp 브라우저를 이용할수 있슴 */
@@ -405,75 +333,65 @@ if ("undefined" == typeof ttb)
 	ttb.provider.isConnected = () => !ttb.is_null(ttb.active_chain_id);
 
 	/* Alias request */
-	ttb.provider.sendAsync = (payload, callback) =>
+	ttb.provider.sendAsync = (...params) =>
 	{
 		console.log('in sendAsync function');
-		console.dir(payload);
-		ttb.provider.request(payload).then(callback);
+		console.dir(params[0]);
+		/* payload가 object가 아닐 경우 처리하지 않는다. */
+		if (!ttb.is_object(params[0])) 
+		{
+			let err = new ProviderRpcError(`Cannot create property 'jsonrpc' on ${typeof payload} '${payload}'`);
+			throw err;
+		}
+		ttb.provider.send(params[0]).then(function(result_payload) {
+			/* error속성을 가지고 있을 건지 아니면 code != 200으로 판단할 건지 에러 판별에 대한 논의 필요 */
+			if(ttb.is_function(params[1]))
+				(result_payload.hasOwnProperty('error')) ? params[1](result_payload, result_payload): params[1](null, result_payload);
+			else
+				return;
+		});
 	};
 
 	/* 3가지 호출 방법 처리 async*/
-	ttb.provider.send = function(...params)
+	ttb.provider.send = async function(...params)
 	{
 		console.log('in send');
 		console.dir(params[0]);
-
-		if (ttb.is_string(params[0]) || ttb.is_object(params[0]))
-		{
-			var method = null;
-			if (ttb.is_string(params[0]))
-			{
-				method = params[0];
-			}
-			else
-			{
-				method = params[0].method;
-			}
-			var sign_needed_method = [
-				'eth_requestAccounts',
-				'eth_sendTransaction',
-				'eth_signTransaction',
-				'eth_sendRawTransaction',
-				'eth_accounts',
-				'eth_chainId',
-				'net_version',
-				'eth_sign',
-				'eth_gasPrice'
-			];
-		}
-
+		let bundle = {'actionType':'walletProvider'};
+		let hasCallback = 0;
 		if (params.length > 1 && ttb.is_object(params[0]) && ttb.is_function(params[1]))
 		{
 			/* void */
-			console.log('1');
-			if (sign_needed_method.includes(method))
+			/* params 필수적? */
+			if(params[0]?.method)
 			{
-				ttb.provider.request(params[0]).then(params[1]);
-			}
-			else
-			{
-				console.log('inside else statement');
-				params[0].jsonrpc = '2.0';
-				params[0].id = '1';
-
-				console.log('payload', params);
-				ttb.provider.request(params[0]).then(params[1]);
+				bundle.action = params[0].method;
+				hasCallback = 1;
 			}
 		}
 		else if (params.length > 0 && ttb.is_string(params[0]))
 		{
-			if (1 == params.length) params[1] = {};
-
+			if(ttb.is_function(params[1])) throw Error('The Maroo Ethereum provider does not support synchronous methods without a callback parameter');
 			/* return Promise<JsonRpcResponse> */
-			return ttb.provider.request({ method: params[0], params: params[1] });
+			bundle.action = params[0];
 		}
 		else if (params.length > 0 && ttb.is_object(params[0]))
 		{
 			console.log('3');
 			/* return unknown */
-			return ttb.provider.request(params[0]);
+			if(params[0]?.method)
+			{
+				bundle.action = params[0].method;
+			}
 		}
+		(params[0]?.params) ? bundle.params = params[0].params : bundle.params = [];
+		let oJson = JSON.parse(await ttb.call_webview_object(bundle));
+		oJson = oJson.body;
+		/* error속성을 가지고 있을 건지 아니면 code != 200으로 판단할 건지 에러 판별에 대한 논의 필요 */
+		if (hasCallback == 1) 
+			(oJson.hasOwnProperty('error')) ? params[1](oJson, oJson) : params[1](null, oJson);
+		else 
+			return Promise.resolve(oJson);
 	};
-
 	console.log('provider injected');
 }
