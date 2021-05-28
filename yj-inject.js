@@ -35,6 +35,7 @@ function inject_script(content)
 	append_js(provider_src, true); 
 
 	if(location.host.includes('1inch')) append_style('1inch');
+	if(location.host.includes('pancake')) append_style('pancake');
 }
 
 function append_js(src, is_module, callback)
