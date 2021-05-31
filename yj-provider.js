@@ -1,19 +1,15 @@
-console.log('ttb-provider included');
 
 'use strict';
 
 if ("undefined" == typeof ttb)
 {
-	console.log('in "undefined" == typeof ttb');
 	var ttb = {};
 
 	ttb.getDeviceOS = function()
 	{
 		if (!window.hasOwnProperty('__deviceOS'))
 		{
-			if (window.hasOwnProperty('android') && window.android.hasOwnProperty('callback')) ttb.__deviceOS = 'android';
-			else if (window.hasOwnProperty('webkit') && window.webkit.hasOwnProperty('messageHandlers')) ttb.__deviceOS = 'ios';
-			else if (window.hasOwnProperty('flutter_inappwebview')) ttb.__deviceOS = 'flutter';
+			if (window.hasOwnProperty('flutter_inappwebview')) ttb.__deviceOS = 'flutter';
 			else ttb.__deviceOS = 'plain';
 		}
 		return ttb.__deviceOS;
@@ -23,17 +19,7 @@ if ("undefined" == typeof ttb)
 	{
 		let deviceOS = ttb.getDeviceOS();
 
-		console.log('call_webview_object', deviceOS);
-
-		if ('android' == deviceOS)
-		{
-			return window.android.callback(JSON.stringify(param));
-		}
-		else if ('ios' == deviceOS)
-		{
-			return window.webkit.messageHandlers.callback.postMessage(JSON.stringify(param));
-		}
-		else if ('flutter' == deviceOS)
+		if ('flutter' == deviceOS)
 		{
 			return window.flutter_inappwebview.callHandler('ttbActionRequest', JSON.stringify(param));
 		}
@@ -42,10 +28,6 @@ if ("undefined" == typeof ttb)
 			if (param.hasOwnProperty('onCallback') && window.hasOwnProperty(param.onCallback))
 			{
 				return window[param.onCallback](param);
-			}
-			else if (param.hasOwnProperty('pc_result'))
-			{
-				return param.pc_result;
 			}
 		}
 	};
@@ -71,10 +53,7 @@ if ("undefined" == typeof ttb)
 		unsubscribe (type, method, id){throw new Error('Unimplemented');}
 		clone () {throw new Error('Unimplemented');}
 	}
-	/* var web3 = new Web3('https://mainnet.infura.io/v3/c989902496c04964bd09cd2db5fd7279'); */
-
 	ttb.provider = new HttpProvider();
-	/* ttb.provider = new HttpProvider(); */
 
 	ttb.event = {};
 
@@ -100,9 +79,6 @@ if ("undefined" == typeof ttb)
 	*/
 	ttb.event.notify = (name, param) =>
 	{
-		console.log(`ttb.event.notify() called with name: ${name}`);
-		console.dir(param);
-
 		/*
 		End-point 호출: ttb.event.notify('connect', {'chainId': nnn })
 		*/
@@ -114,10 +90,8 @@ if ("undefined" == typeof ttb)
 			/* Legacy 지원 */
 			ttb.provider.chainId = param.chainId;
 
-			if (ttb.message_handler[name])
-			{
-				ttb.message_handler[name](param);
-			}
+			if (ttb.message_handler[name]) ttb.message_handler[name](param);
+
 		}
 
 		/*
@@ -158,7 +132,6 @@ if ("undefined" == typeof ttb)
 			}
 			else
 			{
-				console.log('accountsChanged param missing');
 				throw new Error('accountsChanged param missing');
 			}
 		}
@@ -188,12 +161,19 @@ if ("undefined" == typeof ttb)
 		}
 	}
 
+	ttb.return_RPCerror_message = (num) =>
+	{
+		if(4001 == num)
+			return "User Rejected the Request";
+		if(4200 == num)
+			return 'Unsupported method';
+		if(999 == num)
+			return "Unexpected Error while executing";
+	}
+
 	/* Promise를 리턴해야 하며, consumer(dapp)에서 rpc 요청을 대신한다. */
 	ttb.provider.request = (payload) =>
 	{
-		console.log('call ttb.provider.request');
-		console.dir(payload);
-
 		let promise = new Promise(async (resolve_func, reject_func) =>
 		{
 			if (!payload.hasOwnProperty('params')) payload.params = [];
@@ -203,50 +183,19 @@ if ("undefined" == typeof ttb)
 				'action': payload.method,
 				'params': payload.params
 			};
-			console.log('bundle');
-			console.dir(bundle);
-			if (['eth_requestAccounts', 'eth_accounts'].includes(payload.method))
-			{
-				bundle.pc_result = '{"code": 200, "message": "OK", "body" :{"accounts": ["0x4c10D2734Fb76D3236E522509181CC3Ba8DE0e80"] }}';
-			}
-			if (['eth_chainId'].includes(payload.method))
-			{
-				bundle.pc_result = '{"code": 200, "message": "OK", "body" :"0x1"}';
-			}
-			if(['net_version'].includes(payload.method))
-			{
-				bundle.pc_result = '{"code": 200, "message": "OK", "body" : "1"}';
-			}
 			let result_json_string = await ttb.call_webview_object(bundle);
-			console.log('type of return value from webview 123123');
-
-			console.log(result_json_string);
 			let oJson = JSON.parse(result_json_string);
-			console.log('parsing done');
 			/* 성공시 code 를 200 이전에 사용하던 방식에 따라 */
 			if (200 == oJson.code)
 			{
 				let data = oJson.body;
-				console.log('기타 :' + data);
 				resolve_func(data.result);
 			}
 			else
 			{
-				if (4001 == oJson.code)
-				{
-					oJson.message = "User Rejected the Request";
-				}
-				if (4200 == oJson.code)
-				{
-					oJson.message = "Unsupported method";
-				}
-				if (999 == oJson.code)
-				{
-					oJson.message = "Unexpected Error while executing";
-				}
+				oJson.message = ttb.return_RPCerror_message(oJson.code);
 				let err = new ProviderRpcError(oJson.message);
 				err.code = oJson.code;
-				console.dir(oJson);
 				/* should throw error and return error object */
 				if ('function' == typeof reject_func) reject_func(err);
 				else throw err;
@@ -319,9 +268,7 @@ if ("undefined" == typeof ttb)
 		legacy API를 이용하는 dapp은 항상 이 메소드를 먼저 호출 할 것이기에
 		필요한 properties를 여기서 호출 설정해 놓아야함
 		*/
-		console.log('123 before request');
 		let accounts = await ttb.provider.request({ method: 'eth_requestAccounts' });
-		console.log('00000 before accounts');
 		ttb.provider.selectedAddress = await ttb.provider.request({ method: 'eth_accounts' });
 		ttb.provider.networkVersion = await ttb.provider.request({ method: 'net_version' });
 		/* 처음 연결시 notify가 발생한다면 아래 2라인 불필요 */
@@ -335,10 +282,8 @@ if ("undefined" == typeof ttb)
 	/* Alias request */
 	ttb.provider.sendAsync = (...params) =>
 	{
-		console.log('in sendAsync function');
-		console.dir(params[0]);
 		/* payload가 object가 아닐 경우 처리하지 않는다. */
-		if (!ttb.is_object(params[0])) 
+		if (!ttb.is_object(params[0]))
 		{
 			let err = new ProviderRpcError(`Cannot create property 'jsonrpc' on ${typeof payload} '${payload}'`);
 			throw err;
@@ -346,7 +291,18 @@ if ("undefined" == typeof ttb)
 		ttb.provider.send(params[0]).then(function(result_payload) {
 			/* error속성을 가지고 있을 건지 아니면 code != 200으로 판단할 건지 에러 판별에 대한 논의 필요 */
 			if(ttb.is_function(params[1]))
-				(result_payload.hasOwnProperty('error')) ? params[1](result_payload, result_payload): params[1](null, result_payload);
+			{
+				if(result_payload.hasOwnProperty('error') || result_payload == ""){
+					params[1](result_payload, result_payload);
+					let err = new ProviderRpcError(ttb.return_RPCerror_message(result_payload.error));
+					err.code = oJson.code;
+					throw err;
+				}
+				else
+				{
+					params[1](null, result_payload);
+				}
+			}
 			else
 				return;
 		});
@@ -355,8 +311,6 @@ if ("undefined" == typeof ttb)
 	/* 3가지 호출 방법 처리 async*/
 	ttb.provider.send = async function(...params)
 	{
-		console.log('in send');
-		console.dir(params[0]);
 		let bundle = {'actionType':'walletProvider'};
 		let hasCallback = 0;
 		if (params.length > 1 && ttb.is_object(params[0]) && ttb.is_function(params[1]))
@@ -374,24 +328,31 @@ if ("undefined" == typeof ttb)
 			if(ttb.is_function(params[1])) throw Error('The Maroo Ethereum provider does not support synchronous methods without a callback parameter');
 			/* return Promise<JsonRpcResponse> */
 			bundle.action = params[0];
+			if(ttb.is_array(params[1])) bundle.params = params[1];
 		}
 		else if (params.length > 0 && ttb.is_object(params[0]))
 		{
-			console.log('3');
 			/* return unknown */
-			if(params[0]?.method)
-			{
-				bundle.action = params[0].method;
-			}
+			if(params[0]?.method) bundle.action = params[0].method;
 		}
-		(params[0]?.params) ? bundle.params = params[0].params : bundle.params = [];
+
+		(params[0]?.params && bundle?.params) ? bundle.params = params[0].params : bundle.params = [];
+
 		let oJson = JSON.parse(await ttb.call_webview_object(bundle));
-		oJson = oJson.body;
+		/*oJson = oJson.body;*/
 		/* error속성을 가지고 있을 건지 아니면 code != 200으로 판단할 건지 에러 판별에 대한 논의 필요 */
-		if (hasCallback == 1) 
-			(oJson.hasOwnProperty('error')) ? params[1](oJson, oJson) : params[1](null, oJson);
-		else 
-			return Promise.resolve(oJson);
+		if (hasCallback == 1)
+		{
+			if(oJson.code != 200) {
+				params[1](oJson.body, oJson.body);
+				oJson.message = ttb.return_RPCerror_message(oJson.code);
+				let err = new ProviderRpcError(oJson.message);
+				err.code = oJson.code;
+				throw err;
+			 }else params[1](null, oJson.body);
+		}
+		else
+			return Promise.resolve(oJson.body);
 	};
-	console.log('provider injected');
+	console.log('Maroo provider injected');
 }
