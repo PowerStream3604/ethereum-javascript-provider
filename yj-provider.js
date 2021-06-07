@@ -167,7 +167,7 @@ if ("undefined" == typeof ttb)
 			return "User Rejected the Request";
 		if(4200 == num)
 			return 'Unsupported method';
-		if(999 == num)
+		if(999 == num || null == num)
 			return "Unexpected Error while executing";
 	}
 
@@ -280,7 +280,7 @@ if ("undefined" == typeof ttb)
 	ttb.provider.isConnected = () => !ttb.is_null(ttb.active_chain_id);
 
 	/* Alias request */
-	ttb.provider.sendAsync = (...params) =>
+	ttb.provider.sendAsync = async (...params) =>
 	{
 		/* payload가 object가 아닐 경우 처리하지 않는다. */
 		if (!ttb.is_object(params[0]))
@@ -288,24 +288,28 @@ if ("undefined" == typeof ttb)
 			let err = new ProviderRpcError(`Cannot create property 'jsonrpc' on ${typeof payload} '${payload}'`);
 			throw err;
 		}
-		ttb.provider.send(params[0]).then(function(result_payload) {
-			/* error속성을 가지고 있을 건지 아니면 code != 200으로 판단할 건지 에러 판별에 대한 논의 필요 */
-			if(ttb.is_function(params[1]))
+		let bundle = {'actionType':'walletProvider'};
+		(params[0]?.params) ? bundle.params = params[0].params : bundle.params = [];
+		if(params[0]?.method) bundle.action = params[0].method;
+
+		let oJson = JSON.parse(await ttb.call_webview_object(bundle));
+
+		if(ttb.is_function(params[1])){
+			if(oJson.code == 200)
 			{
-				if(result_payload.hasOwnProperty('error') || result_payload == ""){
-					params[1](result_payload, result_payload);
-					let err = new ProviderRpcError(ttb.return_RPCerror_message(result_payload.error));
-					err.code = oJson.code;
-					throw err;
-				}
-				else
-				{
-					params[1](null, result_payload);
-				}
+				params[1](null, oJson.body);
 			}
 			else
-				return;
-		});
+			{
+				oJson.message = ttb.return_RPCerror_message(oJson.code);
+				let err = new ProviderRpcError(oJson.message);
+				err.code = oJson.code;
+				throw err;
+			}
+		}
+		else
+			return;
+
 	};
 
 	/* 3가지 호출 방법 처리 async*/
