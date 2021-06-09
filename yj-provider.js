@@ -1,4 +1,3 @@
-
 'use strict';
 
 if ("undefined" == typeof ttb)
@@ -167,8 +166,11 @@ if ("undefined" == typeof ttb)
 			return "User Rejected the Request";
 		if(4200 == num)
 			return 'Unsupported method';
-		if(999 == num || null == num)
+		if(999 == num)
 			return "Unexpected Error while executing";
+		if (-32603) return "";
+		if(null == num)
+			return "Cannot connect to Endpoint(wallet)";
 	}
 
 	/* Promise를 리턴해야 하며, consumer(dapp)에서 rpc 요청을 대신한다. */
@@ -177,14 +179,23 @@ if ("undefined" == typeof ttb)
 		let promise = new Promise(async (resolve_func, reject_func) =>
 		{
 			if (!payload.hasOwnProperty('params')) payload.params = [];
-
+			if (!payload.hasOwnProperty('method')) return;
 			let bundle = {
 				'actionType': 'walletProvider',
 				'action': payload.method,
 				'params': payload.params
 			};
 			let result_json_string = await ttb.call_webview_object(bundle);
-			let oJson = JSON.parse(result_json_string);
+			try
+			{
+				var oJson = JSON.parse(result_json_string);
+			}
+			catch(error)
+			{
+				let err = new ProviderRpcError(ttb.return_RPCerror_message());
+				err.code = -32603;
+				throw err;
+			}
 			/* 성공시 code 를 200 이전에 사용하던 방식에 따라 */
 			if (200 == oJson.code)
 			{
@@ -291,9 +302,8 @@ if ("undefined" == typeof ttb)
 		let bundle = {'actionType':'walletProvider'};
 		(params[0]?.params) ? bundle.params = params[0].params : bundle.params = [];
 		if(params[0]?.method) bundle.action = params[0].method;
-
+		console.log(params[0].method);
 		let oJson = JSON.parse(await ttb.call_webview_object(bundle));
-
 		if(ttb.is_function(params[1])){
 			if(oJson.code == 200)
 			{
@@ -309,7 +319,6 @@ if ("undefined" == typeof ttb)
 		}
 		else
 			return;
-
 	};
 
 	/* 3가지 호출 방법 처리 async*/
