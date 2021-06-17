@@ -8,10 +8,10 @@ if ("undefined" == typeof ttb)
 	{
 		if (!window.hasOwnProperty('__deviceOS'))
 		{
-			if (window.hasOwnProperty('flutter_inappwebview')) ttb.__deviceOS = 'flutter';
-			else ttb.__deviceOS = 'plain';
+			if (window.hasOwnProperty('flutter_inappwebview')) window.__deviceOS = 'flutter';
+			else window.__deviceOS = 'plain';
 		}
-		return ttb.__deviceOS;
+		return window.__deviceOS;
 	};
 
 	ttb.call_webview_object = function(param)
@@ -168,11 +168,11 @@ if ("undefined" == typeof ttb)
 			return 'Unsupported method';
 		if(999 == num)
 			return "Unexpected Error while executing";
-		if (-32603) return "";
+		if (-32603 == num)
+			return "";
 		if(null == num)
 			return "Cannot connect to Endpoint(wallet)";
 	}
-
 	/* Promise를 리턴해야 하며, consumer(dapp)에서 rpc 요청을 대신한다. */
 	ttb.provider.request = (payload) =>
 	{
@@ -199,7 +199,9 @@ if ("undefined" == typeof ttb)
 			/* 성공시 code 를 200 이전에 사용하던 방식에 따라 */
 			if (200 == oJson.code)
 			{
+
 				let data = oJson.body;
+				if(payload.method == 'eth_requestAccounts') ttb.provider.selectedAddress = data.result;
 				resolve_func(data.result);
 			}
 			else
@@ -279,13 +281,13 @@ if ("undefined" == typeof ttb)
 		legacy API를 이용하는 dapp은 항상 이 메소드를 먼저 호출 할 것이기에
 		필요한 properties를 여기서 호출 설정해 놓아야함
 		*/
-		let accounts = await ttb.provider.request({ method: 'eth_requestAccounts' });
+		/*let accounts = await ttb.provider.request({ method: 'eth_requestAccounts' });*/
 		ttb.provider.selectedAddress = await ttb.provider.request({ method: 'eth_accounts' });
 		ttb.provider.networkVersion = await ttb.provider.request({ method: 'net_version' });
 		/* 처음 연결시 notify가 발생한다면 아래 2라인 불필요 */
 		ttb.active_chain_id = await ttb.provider.request({ method: 'eth_chainId' });
 		ttb.provider.chainId = ttb.active_chain_id;
-		return accounts;
+		/*return accounts;*/
 	};
 
 	ttb.provider.isConnected = () => !ttb.is_null(ttb.active_chain_id);
@@ -303,8 +305,10 @@ if ("undefined" == typeof ttb)
 		(params[0]?.params) ? bundle.params = params[0].params : bundle.params = [];
 		if(params[0]?.method) bundle.action = params[0].method;
 		console.log(params[0].method);
-		let oJson = JSON.parse(await ttb.call_webview_object(bundle));
-		if(ttb.is_function(params[1])){
+		let result = await ttb.call_webview_object(bundle);
+		let oJson = JSON.parse(result);
+		if(ttb.is_function(params[1]))
+		{
 			if(oJson.code == 200)
 			{
 				params[1](null, oJson.body);
