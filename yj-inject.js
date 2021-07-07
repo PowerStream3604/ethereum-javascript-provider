@@ -1,5 +1,5 @@
 (function () {
-let APP_HOST = 'dev-wallet.nefone.net';
+let APP_HOST = '{HTTP_HOST}';
 let SLASH2 = '/' + '/';
 
 if (should_inject())
@@ -24,18 +24,14 @@ async function start()
  */
 function inject_script(content)
 {
-	let web3_src = `${location.protocol}${SLASH2}${APP_HOST}/js/web3.min.js`;
-	let provider_src = `${location.protocol}${SLASH2}${APP_HOST}/browser/ttb-provider.js?${(new Date() * 1)}`;
-	console.log('wow ttb-inject');
+	let provider_src = `${location.protocol}${SLASH2}${APP_HOST}/browser/ttb-provider.php?${(new Date() * 1)}`;
+	console.log('ttb-inject');
 
-	
-	/* 더이상 web3.js 필요없슴*/
-	/*append_js(web3_src, false, () => {append_js(provider_src, true)});*/
-	
-	append_js(provider_src, true); 
+	append_js(provider_src, true);
 
 	if(location.host.includes('1inch')) append_style('1inch');
 	if(location.host.includes('pancake')) append_style('pancake');
+	if(location.host.includes('hubdao')) append_style('hubdao');
 }
 
 function append_js(src, is_module, callback)
@@ -129,7 +125,7 @@ function has_documentElement()
  */
 function is_white_domain()
 {
-	const domains = ['nefone.net'];
+	const domains = ['nefone.net', 'gobt.io'];
 
 	return domains.indexOf(window.location.host) > -1;
 }
